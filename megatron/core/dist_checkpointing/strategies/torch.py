@@ -405,7 +405,14 @@ def _replace_sharded_keys_with_state_dict_keys(
     """Inverse of _replace_state_dict_keys_with_sharded_keys."""
     recovered_sd = {}
     for k, tensors in state_dict.items():
-        assert len(tensors) == len(rename_mapping[k])
+        # Skip keys not in rename_mapping (e.g., LoRA adapters not in base checkpoint)
+        if k not in rename_mapping:
+            continue
+        # Handle BytesIO objects (ShardedObject data) - deserialize them
+        if isinstance(tensors, io.BytesIO):
+            tensors.seek(0)
+            tensors = torch.load(tensors, weights_only=False)
+        assert len(tensors) == len(rename_mapping[k]), f"Length mismatch for {k}: {len(tensors)} vs {len(rename_mapping[k])}"
         for ten, recovered_k in zip(tensors, rename_mapping[k]):
             recovered_sd[recovered_k] = ten
 
